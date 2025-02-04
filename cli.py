@@ -24,9 +24,4 @@ SEND_TYPES = {
 RECEIVE_TYPES = {
     1: "immobilize",
     2: "rpmPreset",
-<<<<<<< HEAD
 }
-=======
-}
-
->>>>>>> 1a1bec6 (Starting the cli tool)
