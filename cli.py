@@ -51,6 +51,25 @@ def main():
         if choice == "1":
             client = connect_to_server()
             
+            while True:
+                print("\n\n Menu:")
+                print("1. Send Data")
+                print("2. Receive Data")
+                print("3. Disconnect")
+
+                # sub_choice = input("\nEnter option: ")
+
+                # if sub_choice == "1":
+                #     send_data(client)
+                # elif sub_choice == "2":
+                #     receive_data(client)
+                # elif sub_choice == "3":
+                #     client.close()
+                #     print("\n Disconnected!! 🔌 ")
+                #     break
+                # else:
+                #     print("\n ❌ Invalid option")
+
         elif choice == "2":
             print("\n Goodbye!! 👋 ")
             sys.exit(0)
