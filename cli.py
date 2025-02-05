@@ -1,11 +1,15 @@
 import socket
 import sys
 import time
+import select
+import threading
 
 SERVER_IP = "13.232.19.209"
 SERVER_PORT = 3050
 
-SEND_TYPES = {
+DATA_TYPES = {
+    1: "immobilize",
+    2: "rpmPreset",
     3: "gps",
     4: "busCurrent",
     5: "busVoltage",
@@ -17,6 +21,8 @@ SEND_TYPES = {
     11: "throttle",
     12: "motorTemperature",
 }
+
+stop_listening = False  # Global flag to stop listening
 
 def connect_to_server():
     try:
@@ -51,6 +57,8 @@ def encode_packet(index, payload):
     return bytes(buffer)
 
 def decode_packet(buffer):
+    
+
     if len(buffer) < 5 or buffer[0] != 0xAA or buffer[1] != 0xBB:
         print("❌ Invalid packet.")
         return None
@@ -65,9 +73,11 @@ def decode_packet(buffer):
     if checksum != calc_checksum:
         print("❌ Checksum mismatch.")
         return None
+
+    data_type = DATA_TYPES.get(type_code, "unknown")
     
     return {
-        "dataType": SEND_TYPES.get(type_code, "unknown"),
+        "dataType": data_type,
         "payload": payload.decode("utf-8") if type_code == 3 else int.from_bytes(payload, "big")
     }
 
@@ -75,15 +85,15 @@ def send_data(client):
     try:
         while True:
             print("\nChoose data type to send:")
-            for k, v in SEND_TYPES.items():
+            for k, v in DATA_TYPES.items():
                 print(f"  {k}: {v}")
             choice = int(input("\nEnter data type index (or 0 to stop): "))
             if choice == 0:
                 break
-            if choice not in SEND_TYPES:
+            if choice not in DATA_TYPES:
                 print("❌ Invalid choice.")
                 continue
-            value = input(f"Enter value for {SEND_TYPES[choice]}: ")
+            value = input(f"Enter value for {DATA_TYPES[choice]}: ")
             if choice in [4, 5, 9, 10, 11]:
                 value = int(float(value) * 100)  # Convert decimal to int representation
             elif choice in [6]:
@@ -96,19 +106,36 @@ def send_data(client):
         print("\n⏹ Stopped sending.")
 
 def receive_data(client):
-    try:
-        print("\nListening for incoming data...\n")
-        while True:
-            data = client.recv(1024)
-            if not data:
-                print("❌ Disconnected.")
-                break
-            decoded = decode_packet(data)
-            if decoded:
-                print(f"📥 Received: {decoded}")
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("\n⏹ Stopped receiving.")
+    global stop_listening
+    stop_listening = False
+    print("\nListening for incoming data... (Press 'q' to stop)\n")
+
+    def listen():
+        global stop_listening
+        while not stop_listening:
+            ready, _, _ = select.select([client], [], [], 1)  # Check if data is available
+            if ready:
+                data = client.recv(1024)
+                if not data:
+                    print("❌ Disconnected.")
+                    stop_listening = True
+                    break
+                decoded = decode_packet(data)
+                if decoded:
+                    print(f"📥 Received: {decoded}")
+            time.sleep(0.1)  # Small delay to reduce CPU usage
+
+    # Start listening thread
+    listener_thread = threading.Thread(target=listen, daemon=True)
+    listener_thread.start()
+
+    # Wait for 'q' to stop listening
+    while not stop_listening:
+        user_input = input()
+        if user_input.lower() == 'q':
+            stop_listening = True
+
+    print("\n⏹ Stopped receiving. Returning to menu.\n")
 
 def main():
     while True:
