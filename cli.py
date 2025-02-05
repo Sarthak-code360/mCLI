@@ -32,7 +32,7 @@ def connect_to_server():
     try:
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.connect((SERVER_IP, SERVER_PORT))
-        print(f"✅Connected to server {SERVER_IP}:{SERVER_PORT}")
+        print(f"✅ Connected to server {SERVER_IP}:{SERVER_PORT}")
         return client
     except Exception as e:
         print(f"❌Failed to connect to server: {e}")
@@ -40,32 +40,46 @@ def connect_to_server():
 
 # Encode Packet for Sending
 def encode_packet(index, payload):
-    """Encode a packet into HEX format before sending."""
-    payload_bytes = payload.encode("utf-8") if isinstance(payload, str) else payload
+    """
+    Encode data into the required binary packet format.
+    Ensures integer values are correctly converted to HEX bytes.
+    """
+    # Convert payload to bytes correctly
+    if isinstance(payload, int):
+        # Convert integer to HEX bytes (big-endian, 2-byte representation)
+        payload_bytes = payload.to_bytes(2, byteorder='big')  
+    elif isinstance(payload, str):
+        payload_bytes = payload.encode()  # Convert string to raw bytes
+    else:
+        raise ValueError("Payload must be int or str")
+
     payload_length = len(payload_bytes)
 
-    buffer_size = 4 + payload_length + 2  # Header(4) + Payload + Checksum(1) + End Flag(1)
+    # Create buffer
+    buffer_size = 4 + payload_length + 2  # Header (4) + Payload + Checksum (1) + End flag (0xCC)
     buffer = bytearray(buffer_size)
 
-    # Fixed Header
+    # Write fixed header
     buffer[0] = 0xAA
     buffer[1] = 0xBB
     buffer[2] = index
     buffer[3] = payload_length
 
-    # Payload
-    buffer[4:4+payload_length] = payload_bytes
+    # Copy the payload
+    buffer[4:4 + payload_length] = payload_bytes
 
-    # Calculate checksum (XOR of all bytes)
+    # Calculate checksum (XOR of all bytes except the last)
     checksum = 0
     for i in range(4 + payload_length):
         checksum ^= buffer[i]
-    buffer[4 + payload_length] = checksum
+    
+    buffer[4 + payload_length] = checksum  # Checksum
 
-    # End Flag
+    # End flag (0xCC)
     buffer[5 + payload_length] = 0xCC
 
-    return buffer
+    return bytes(buffer)  # Return as immutable bytes
+
 
 # Decode Packet for Receiving
 def decode_packet(buffer):
