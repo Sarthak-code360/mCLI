@@ -57,8 +57,6 @@ def encode_packet(index, payload):
     return bytes(buffer)
 
 def decode_packet(buffer):
-    
-
     if len(buffer) < 5 or buffer[0] != 0xAA or buffer[1] != 0xBB:
         print("❌ Invalid packet.")
         return None
@@ -87,23 +85,30 @@ def send_data(client):
             print("\nChoose data type to send:")
             for k, v in DATA_TYPES.items():
                 print(f"  {k}: {v}")
-            choice = int(input("\nEnter data type index (or 0 to stop): "))
-            if choice == 0:
+                
+            choice = input("\nEnter data type index (or 'q' to stop): ").strip()
+            if choice.lower() == 'q':
                 break
+            
+            if not choice.isdigit():  # Ensure input is numeric
+                print("❌ Invalid choice.")
+                continue
+            
+            choice = int(choice)  # Convert to integer after validation
+            
             if choice not in DATA_TYPES:
                 print("❌ Invalid choice.")
                 continue
+            
             value = input(f"Enter value for {DATA_TYPES[choice]}: ")
-            if choice in [4, 5, 9, 10, 11]:
-                value = int(float(value) * 100)  # Convert decimal to int representation
-            elif choice in [6]:
-                value = int(value)
+            
             packet = encode_packet(choice, value)
             client.sendall(packet)
             print(f"📤 Sent: {packet.hex()}")
             time.sleep(1)
     except KeyboardInterrupt:
         print("\n⏹ Stopped sending.")
+
 
 def receive_data(client):
     global stop_listening
