@@ -38,9 +38,11 @@ def encode_packet(index, payload):
     if isinstance(payload, str):
         payload_bytes = payload.encode()
     elif isinstance(payload, int):
-        payload_bytes = payload.to_bytes(2, byteorder='big')
+        payload_bytes = payload.to_bytes(2, byteorder='big', signed=True)
+    elif isinstance(payload, bytes):  # Handle bytes directly
+        payload_bytes = payload
     else:
-        raise ValueError("Payload must be int or str")
+        raise ValueError("Payload must be int, str, or bytes")
     
     payload_length = len(payload_bytes)
     buffer = bytearray(5 + payload_length)
@@ -55,6 +57,7 @@ def encode_packet(index, payload):
     buffer.insert(-1, checksum)
     
     return bytes(buffer)
+
 
 def decode_packet(buffer):
     if len(buffer) < 5 or buffer[0] != 0xAA or buffer[1] != 0xBB:
@@ -101,8 +104,18 @@ def send_data(client):
                 continue
             
             value = input(f"Enter value for {DATA_TYPES[choice]}: ")
-            
-            packet = encode_packet(choice, value)
+
+            if choice == 3:  # GPS should be sent as a string
+                encoded_value = value.encode()  
+            elif choice in [4, 5, 10, 11]:  # Values that need to be multiplied by 100
+                encoded_value = int(float(value) * 100).to_bytes(2, 'big', signed=True)
+            elif choice in [6, 7, 8, 9, 12]:  # Values that should be sent as integers (without decimal values)
+                encoded_value = int(value).to_bytes(2, 'big', signed=True)
+            else:
+                print("❌ Unsupported data type.")
+                continue
+
+            packet = encode_packet(choice, encoded_value)
             client.sendall(packet)
             print(f"📤 Sent: {packet.hex()}")
             time.sleep(1)
