@@ -108,9 +108,9 @@ def send_data(client):
             if choice == 3:  # GPS should be sent as a string
                 encoded_value = value.encode()  
             elif choice in [4, 5, 10, 11]:  # Values that need to be multiplied by 100
-                encoded_value = int(float(value) * 100).to_bytes(2, 'big', signed=True)
+                encoded_value = int(float(value) * 100).to_bytes(2, 'big', signed=True) # (not working)
             elif choice in [6, 7, 8, 9, 12]:  # Values that should be sent as integers (without decimal values)
-                encoded_value = int(value).to_bytes(2, 'big', signed=True)
+                encoded_value = int(value).to_bytes(2, 'big', signed=True) # (working)
             else:
                 print("❌ Unsupported data type.")
                 continue
