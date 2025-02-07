@@ -42,7 +42,7 @@ python cli.py
 - Decimal values are split into two separate bytes (e.g., `12.13` is transmitted as `0x0C 0x0D`).
 
 ## License
-This project is licensed under the **Mazout Electric Proprietary License**. See the [LICENSE](LICENSE)file for details.
+This project is licensed under the **Mazout Electric Proprietary License**. See the [LICENSE](./LICENSE)file for details.
 
 ## Contributors
 - **Mazout Electric Development Team**
