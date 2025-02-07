@@ -45,7 +45,7 @@ python cli.py
 This project is licensed under the **Mazout Electric Proprietary License**. See the [LICENSE](./LICENSE) file for details.
 
 ## Contributors
-- **Mazout Electric Development Team**
+- **Sarthak Mishra**
 
-For any queries or contributions, contact: [support@mazoutelectric.com](mailto:support@mazoutelectric.com)
+For any queries or contributions, contact: [info@mazoutelectric.com](mailto:info@mazoutelectric.com)
 
