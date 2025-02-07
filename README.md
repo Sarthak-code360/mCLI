@@ -10,7 +10,7 @@ Mazout CLI Tool is a command-line interface for sending and receiving data betwe
 - **Supports decimal values** by splitting them into two separate bytes before transmission.
 
 ## Installation
-Ensure you have Python 3 installed. Clone this repository and install dependencies:
+Ensure you have Python installed. Clone this repository and install dependencies:
 
 ```sh
 # Clone the repository
