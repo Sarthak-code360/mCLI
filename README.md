@@ -49,7 +49,7 @@ This project is licensed under the **Mazout Electric Proprietary License**. See 
 For general inquiries or issues, contact our support team:
 
 - **Support Email:** info@mazoutelectric.com
-- **GitHub Issues:** [Mazout Vendor Application Issues](https://github.com/Mazout-Electric/vendor-application/issues)
+- **GitHub Issues:** [Mazout CLI Tool Issues](https://github.com/Sarthak-code360/mCLI/issues)
 
 For specific technical questions, you can also reach out to:
 
