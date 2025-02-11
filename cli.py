@@ -3,9 +3,15 @@ import sys
 import time
 import select
 import threading
+import pandas as pd
+import json
 
 SERVER_IP = "13.232.19.209"
 SERVER_PORT = 3050
+CSV_FILE = "sensor_data.csv"
+
+stop_listening = False  # Global flag to stop listening
+stop_sending = False
 
 DATA_TYPES = {
     1: "immobilize",
@@ -21,8 +27,6 @@ DATA_TYPES = {
     11: "throttle",
     12: "motorTemperature",
 }
-
-stop_listening = False  # Global flag to stop listening
 
 def connect_to_server():
     try:
@@ -132,6 +136,42 @@ def send_data(client):
         print("\n⏹ Stopped sending.")
 
 
+def send_file_data(client):
+    global stop_sending
+    stop_sending = False
+    print("\nSending data from file... (Press 'q' to stop)")
+    
+    try:
+        df = pd.read_csv(CSV_FILE)
+        for _, row in df.iterrows():
+            if stop_sending:
+                break
+            
+            payload = {
+                "time": row["Time"],
+                "voltage": row["Voltage"],
+                "current": row["Current"],
+                "imu": {
+                    "accel_x": row["Accel_X"],
+                    "accel_y": row["Accel_Y"],
+                    "accel_z": row["Accel_Z"],
+                    "gyro_x": row["Gyro_X"],
+                    "gyro_y": row["Gyro_Y"],
+                    "gyro_z": row["Gyro_Z"]
+                }
+            }
+            json_data = json.dumps(payload)
+            client.sendall(json_data.encode())
+            print(f"📤 Sent: {json_data}")
+            time.sleep(1)  # Simulating real-time transmission
+    except Exception as e:
+        print(f"❌ Error reading or sending data: {e}")
+
+def file_communication():
+    client = connect_to_server()
+    send_file_data(client)
+    client.close()
+
 
 def receive_data(client):
     global stop_listening
@@ -177,13 +217,16 @@ def main():
                 print("\n Menu:")
                 print("1. Send Data")
                 print("2. Receive Data")
-                print("3. Disconnect")
+                print("3. Send Data from File")
+                print("4. Disconnect")
                 sub_choice = input("\nEnter option: ")
                 if sub_choice == "1":
                     send_data(client)
                 elif sub_choice == "2":
                     receive_data(client)
                 elif sub_choice == "3":
+                    send_file_data(client)
+                elif sub_choice == "4":
                     client.close()
                     print("\n Disconnected!! 🔌 ")
                     break
