@@ -44,8 +44,16 @@ python cli.py
 ## License
 This project is licensed under the **Mazout Electric Proprietary License**. See the [LICENSE](./LICENSE) file for details.
 
-## Contributors
-- **Mazout Electric Development Team**
+## Contact
 
-For any queries or contributions, contact: [support@mazoutelectric.com](mailto:support@mazoutelectric.com)
+For general inquiries or issues, contact our support team:
+
+- **Support Email:** info@mazoutelectric.com
+- **GitHub Issues:** [Mazout CLI Tool Issues](https://github.com/Sarthak-code360/mCLI/issues)
+
+For specific technical questions, you can also reach out to:
+
+- **Developer:** [Sarthak Mishra](https://github.com/Sarthak-code360)
+
+For any queries or contributions, contact: [info@mazoutelectric.com](mailto:info@mazoutelectric.com)
 
