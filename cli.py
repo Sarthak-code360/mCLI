@@ -135,17 +135,28 @@ def send_data(client):
     except KeyboardInterrupt:
         print("\n⏹ Stopped sending.")
 
+def listen_for_stop():
+    global stop_sending
+    while True:
+        user_input = input().strip()
+        if user_input.lower() == 'q':
+            stop_sending = True
+            break  # Stop the thread
 
 def send_file_data(client):
     global stop_sending
     stop_sending = False
     print("\nSending data from file... (Press 'q' to stop)")
+
+    # Start a separate thread to listen for 'q' input
+    listener_thread = threading.Thread(target=listen_for_stop, daemon=True)
+    listener_thread.start()
     
     try:
         df = pd.read_csv(CSV_FILE)
         for _, row in df.iterrows():
             if stop_sending:
-                break
+                break  # Stop sending if flag is set
             
             payload = {
                 "time": row["Time"],
@@ -164,13 +175,11 @@ def send_file_data(client):
             client.sendall(json_data.encode())
             print(f"📤 Sent: {json_data}")
             time.sleep(1)  # Simulating real-time transmission
+
     except Exception as e:
         print(f"❌ Error reading or sending data: {e}")
-
-def file_communication():
-    client = connect_to_server()
-    send_file_data(client)
-    client.close()
+        
+    print("\n⏹ Stopped sending file data. Returning to menu.\n")
 
 
 def receive_data(client):
