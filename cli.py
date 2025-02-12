@@ -6,6 +6,10 @@ import select
 import threading
 import pandas as pd
 import json
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from collections import deque
+import numpy as np
 
 SERVER_IP = "13.232.19.209"
 SERVER_PORT = 3050
@@ -13,6 +17,78 @@ CSV_FILE = "sensor_data.csv"
 
 stop_listening = False  # Global flag to stop listening
 stop_sending = False
+
+PLOT_POINTS = 100  # Number of points to show in the plot
+voltage_data = deque(maxlen=PLOT_POINTS)
+current_data = deque(maxlen=PLOT_POINTS)
+timestamps = deque(maxlen=PLOT_POINTS)
+plot_lock = threading.Lock()  # Thread safety for plotting
+
+def init_plot():
+    """Initialize the plotting window"""
+    plt.ion()  # Enable interactive mode
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    fig.suptitle('Real-time Bus Data')
+    
+    # Set up voltage subplot
+    ax1.set_ylabel('Bus Voltage (V)')
+    ax1.set_ylim(80, 100)  # Adjust based on your voltage range
+    ax1.grid(True)
+    
+    # Set up current subplot
+    ax2.set_ylabel('Bus Current (A)')
+    ax2.set_xlabel('Time')
+    ax2.set_ylim(-30, 130)  # Adjust based on your current range
+    ax2.grid(True)
+    
+    return fig, (ax1, ax2)
+
+def update_plot(fig, axes):
+    """Update the plot with new data"""
+    with plot_lock:
+        if not timestamps:  # No data yet
+            return
+        
+        ax1, ax2 = axes
+        
+        # Clear previous lines
+        ax1.clear()
+        ax2.clear()
+        
+        # Reset titles and grid
+        ax1.set_ylabel('Bus Voltage (V)')
+        ax2.set_ylabel('Bus Current (A)')
+        ax2.set_xlabel('Time')
+        ax1.grid(True)
+        ax2.grid(True)
+        
+        # Convert timestamps to numeric format for plotting
+        time_numbers = range(len(timestamps))
+        
+        # Plot new data
+        ax1.plot(time_numbers, list(voltage_data), 'b-', label='Voltage')
+        ax2.plot(time_numbers, list(current_data), 'r-', label='Current')
+        
+        # Set x-axis labels
+        if len(timestamps) > 0:
+            # Show fewer x-axis labels to prevent overcrowding
+            n_labels = 5
+            step = max(len(timestamps) // n_labels, 1)
+            positions = range(0, len(timestamps), step)
+            labels = [timestamps[i].split()[1] for i in positions]  # Only show time part
+            ax2.set_xticks(positions)
+            ax2.set_xticklabels(labels, rotation=45)
+        
+        # Add legends
+        ax1.legend()
+        ax2.legend()
+        
+        # Adjust layout to prevent label cutoff
+        plt.tight_layout()
+        
+        # Draw the update
+        fig.canvas.draw()
+        fig.canvas.flush_events()
 
 DATA_TYPES = {
     1: "immobilize",
@@ -157,6 +233,8 @@ def send_file_data(client):
         df = pd.read_csv(CSV_FILE)
         row_count = 0
 
+        fig, axes = init_plot()
+
         for _, row in df.iterrows():
             if stop_sending:
                 break
@@ -180,6 +258,16 @@ def send_file_data(client):
                 }
             }
 
+             # Update plotting data
+            with plot_lock:
+                timestamps.append(row["Time"])
+                voltage_data.append(float(row["Bus_Voltage"]))
+                current_data.append(float(row["Bus_Current"]))
+            
+            # Update plot every 5 data points to improve performance
+            if row_count % 5 == 0:
+                update_plot(fig, axes)
+
             json_data = json.dumps(payload) # Convert to JSON string
             client.sendall(json_data.encode()) # Send as bytes to server
             
@@ -196,6 +284,10 @@ def send_file_data(client):
         print("❌ Error: The CSV file is empty")
     except Exception as e:
         print(f"❌ Error reading or sending data: {e}")
+    
+    finally:
+        plt.ioff()
+        plt.close('all')
     
     print("\n⏹ Stopped sending file data. Returning to menu.\n")
 
