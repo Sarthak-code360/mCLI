@@ -1,3 +1,4 @@
+import datetime
 import socket
 import sys
 import time
@@ -154,33 +155,49 @@ def send_file_data(client):
     
     try:
         df = pd.read_csv(CSV_FILE)
+        row_count = 0
+
         for _, row in df.iterrows():
             if stop_sending:
-                break  # Stop sending if flag is set
-            
+                break
+
             payload = {
-                "time": row["Time"],
-                "voltage": row["Voltage"],
-                "current": row["Current"],
-                "imu": {
-                    "accel_x": row["Accel_X"],
-                    "accel_y": row["Accel_Y"],
-                    "accel_z": row["Accel_Z"],
-                    "gyro_x": row["Gyro_X"],
-                    "gyro_y": row["Gyro_Y"],
-                    "gyro_z": row["Gyro_Z"]
+                "time" : row["Time"],
+                "motor_data" : {
+                    "busVoltage" : float(row["Bus_Voltage"]),
+                    "busCurrent" : float(row["Bus_Current"]),
+                    "rpm" : float(row["RPM"]),
+                    "torque" : float(row["Torque"]),
+                },
+                "phase_currents": {
+                    "u": float(row["Current_U"]),
+                    "v": float(row["Current_V"]),
+                    "w": float(row["Current_W"])
+                },
+                "system_status": {
+                    "throttle_voltage": float(row["Throttle_Voltage"]),
+                    "soc": float(row["SOC"])
                 }
             }
-            json_data = json.dumps(payload)
-            client.sendall(json_data.encode())
-            print(f"📤 Sent: {json_data}")
-            time.sleep(1)  # Simulating real-time transmission
 
+            json_data = json.dumps(payload) # Convert to JSON string
+            client.sendall(json_data.encode()) # Send as bytes to server
+            
+            row_count += 1
+
+            print(f"📤 Sent row {row_count}: {json_data}")
+            print(f"⏱ Progress: {row_count}/{len(df)} rows sent", end='\r')
+            
+            time.sleep(0.1)  # Sending at 10Hz to match data generation rate
+
+    except FileNotFoundError:
+        print(f"❌ Error: CSV file not found at {CSV_FILE}")
+    except pd.errors.EmptyDataError:
+        print("❌ Error: The CSV file is empty")
     except Exception as e:
         print(f"❌ Error reading or sending data: {e}")
-        
+    
     print("\n⏹ Stopped sending file data. Returning to menu.\n")
-
 
 def receive_data(client):
     global stop_listening
