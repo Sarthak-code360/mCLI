@@ -21,13 +21,14 @@ stop_sending = False
 PLOT_POINTS = 100  # Number of points to show in the plot
 voltage_data = deque(maxlen=PLOT_POINTS)
 current_data = deque(maxlen=PLOT_POINTS)
+soc_data = deque(maxlen=PLOT_POINTS)
 timestamps = deque(maxlen=PLOT_POINTS)
 plot_lock = threading.Lock()  # Thread safety for plotting
 
 def init_plot():
     """Initialize the plotting window"""
     plt.ion()  # Enable interactive mode
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
     fig.suptitle('Real-time Bus Data')
     
     # Set up voltage subplot
@@ -40,8 +41,13 @@ def init_plot():
     ax2.set_xlabel('Time')
     ax2.set_ylim(-30, 130)  # Adjust based on your current range
     ax2.grid(True)
+
+    ax3.set_ylabel('SOC (%)')
+    ax3.set_xlabel('Time')
+    ax3.set_ylim(0, 100)  # Adjust based on your current range
+    ax3.grid(True)
     
-    return fig, (ax1, ax2)
+    return fig, (ax1, ax2,  ax3)
 
 def update_plot(fig, axes):
     """Update the plot with new data"""
@@ -49,25 +55,35 @@ def update_plot(fig, axes):
         if not timestamps:  # No data yet
             return
         
-        ax1, ax2 = axes
+        ax1, ax2, ax3 = axes
         
         # Clear previous lines
         ax1.clear()
         ax2.clear()
+        ax3.clear()
         
         # Reset titles and grid
         ax1.set_ylabel('Bus Voltage (V)')
         ax2.set_ylabel('Bus Current (A)')
-        ax2.set_xlabel('Time')
+        ax3.set_ylabel('SOC (%)')
+        ax3.set_xlabel('Time') # Only bottom subplot needs x-label
+
         ax1.grid(True)
         ax2.grid(True)
+        ax3.grid(True)
         
+        # Set y-axis limits
+        ax1.set_ylim(80, 100)
+        ax2.set_ylim(-30, 130)
+        ax3.set_ylim(0, 100)
+
         # Convert timestamps to numeric format for plotting
         time_numbers = range(len(timestamps))
         
         # Plot new data
         ax1.plot(time_numbers, list(voltage_data), 'b-', label='Voltage')
         ax2.plot(time_numbers, list(current_data), 'r-', label='Current')
+        ax3.plot(time_numbers, list(soc_data), 'g-', label='SOC')
         
         # Set x-axis labels
         if len(timestamps) > 0:
@@ -76,12 +92,17 @@ def update_plot(fig, axes):
             step = max(len(timestamps) // n_labels, 1)
             positions = range(0, len(timestamps), step)
             labels = [timestamps[i].split()[1] for i in positions]  # Only show time part
-            ax2.set_xticks(positions)
-            ax2.set_xticklabels(labels, rotation=45)
+
+            # Only set time labels on bottom subplot
+            ax1.set_xticks([])  # Hide x-axis labels for top plots
+            ax2.set_xticks([])
+            ax3.set_xticks(positions)
+            ax3.set_xticklabels(labels, rotation=45)
         
         # Add legends
-        ax1.legend()
-        ax2.legend()
+        ax1.legend(loc='upper right')
+        ax2.legend(loc='upper right')
+        ax3.legend(loc='upper right')
         
         # Adjust layout to prevent label cutoff
         plt.tight_layout()
@@ -258,11 +279,12 @@ def send_file_data(client):
                 }
             }
 
-             # Update plotting data
+            # Update plotting data
             with plot_lock:
                 timestamps.append(row["Time"])
                 voltage_data.append(float(row["Bus_Voltage"]))
                 current_data.append(float(row["Bus_Current"]))
+                soc_data.append(float(row["SOC"]))
             
             # Update plot every 5 data points to improve performance
             if row_count % 5 == 0:
