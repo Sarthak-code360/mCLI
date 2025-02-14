@@ -25,6 +25,79 @@ soc_data = deque(maxlen=PLOT_POINTS)
 timestamps = deque(maxlen=PLOT_POINTS)
 plot_lock = threading.Lock()  # Thread safety for plotting
 
+DATA_TYPES = {
+    1: "immobilize",
+    2: "rpmPreset",
+    3: "gps",
+    4: "busCurrent",
+    5: "busVoltage",
+    6: "rpm",
+    7: "deviceTemperature",
+    8: "networkStrength",
+    9: "torque",
+    10: "SOC",
+    11: "throttle",
+    12: "motorTemperature",
+}
+
+def connect_to_server():
+    try:
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.connect((SERVER_IP, SERVER_PORT))
+        print(f"✅ Connected to server {SERVER_IP}:{SERVER_PORT}")
+        return client
+    except Exception as e:
+        print(f"❌ Failed to connect to server: {e}")
+        sys.exit(1)
+
+def encode_packet(index, payload):
+    if isinstance(payload, str):
+        payload_bytes = payload.encode()
+    elif isinstance(payload, int):
+        payload_bytes = payload.to_bytes(2, byteorder='big', signed=True)
+    elif isinstance(payload, bytes):  # Handle bytes directly
+        payload_bytes = payload
+    else:
+        raise ValueError("Payload must be int, str, or bytes")
+    
+    payload_length = len(payload_bytes)
+    buffer = bytearray(5 + payload_length)
+    buffer[0], buffer[1] = 0xAA, 0xBB
+    buffer[2], buffer[3] = index, payload_length
+    buffer[4:4+payload_length] = payload_bytes
+    buffer[-1] = 0xCC
+    
+    checksum = 0
+    for i in range(len(buffer) - 1):
+        checksum ^= buffer[i]
+    buffer.insert(-1, checksum)
+    
+    return bytes(buffer)
+
+
+def decode_packet(buffer):
+    if len(buffer) < 5 or buffer[0] != 0xAA or buffer[1] != 0xBB:
+        print("❌ Invalid packet.")
+        return None
+    
+    type_code, length = buffer[2], buffer[3]
+    payload = buffer[4:4 + length]
+    checksum = buffer[4 + length]
+    calc_checksum = 0
+    for i in range(4 + length):
+        calc_checksum ^= buffer[i]
+    
+    if checksum != calc_checksum:
+        print("❌ Checksum mismatch.")
+        return None
+
+    data_type = DATA_TYPES.get(type_code, "unknown")
+    
+    return {
+        "dataType": data_type,
+        "payload": payload.decode("utf-8") if type_code == 3 else int.from_bytes(payload, "big")
+    }
+
 def init_plot():
     """Initialize the plotting window"""
     plt.ion()  # Enable interactive mode
@@ -111,79 +184,7 @@ def update_plot(fig, axes):
         fig.canvas.draw()
         fig.canvas.flush_events()
 
-DATA_TYPES = {
-    1: "immobilize",
-    2: "rpmPreset",
-    3: "gps",
-    4: "busCurrent",
-    5: "busVoltage",
-    6: "rpm",
-    7: "deviceTemperature",
-    8: "networkStrength",
-    9: "torque",
-    10: "SOC",
-    11: "throttle",
-    12: "motorTemperature",
-}
-
-def connect_to_server():
-    try:
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect((SERVER_IP, SERVER_PORT))
-        print(f"✅ Connected to server {SERVER_IP}:{SERVER_PORT}")
-        return client
-    except Exception as e:
-        print(f"❌ Failed to connect to server: {e}")
-        sys.exit(1)
-
-def encode_packet(index, payload):
-    if isinstance(payload, str):
-        payload_bytes = payload.encode()
-    elif isinstance(payload, int):
-        payload_bytes = payload.to_bytes(2, byteorder='big', signed=True)
-    elif isinstance(payload, bytes):  # Handle bytes directly
-        payload_bytes = payload
-    else:
-        raise ValueError("Payload must be int, str, or bytes")
-    
-    payload_length = len(payload_bytes)
-    buffer = bytearray(5 + payload_length)
-    buffer[0], buffer[1] = 0xAA, 0xBB
-    buffer[2], buffer[3] = index, payload_length
-    buffer[4:4+payload_length] = payload_bytes
-    buffer[-1] = 0xCC
-    
-    checksum = 0
-    for i in range(len(buffer) - 1):
-        checksum ^= buffer[i]
-    buffer.insert(-1, checksum)
-    
-    return bytes(buffer)
-
-
-def decode_packet(buffer):
-    if len(buffer) < 5 or buffer[0] != 0xAA or buffer[1] != 0xBB:
-        print("❌ Invalid packet.")
-        return None
-    
-    type_code, length = buffer[2], buffer[3]
-    payload = buffer[4:4 + length]
-    checksum = buffer[4 + length]
-    calc_checksum = 0
-    for i in range(4 + length):
-        calc_checksum ^= buffer[i]
-    
-    if checksum != calc_checksum:
-        print("❌ Checksum mismatch.")
-        return None
-
-    data_type = DATA_TYPES.get(type_code, "unknown")
-    
-    return {
-        "dataType": data_type,
-        "payload": payload.decode("utf-8") if type_code == 3 else int.from_bytes(payload, "big")
-    }
-
+        
 def send_data(client):
     try:
         while True:
