@@ -22,6 +22,7 @@ PLOT_POINTS = 100  # Number of points to show in the plot
 voltage_data = deque(maxlen=PLOT_POINTS)
 current_data = deque(maxlen=PLOT_POINTS)
 soc_data = deque(maxlen=PLOT_POINTS)
+throttle_data = deque(maxlen=PLOT_POINTS)
 timestamps = deque(maxlen=PLOT_POINTS)
 plot_lock = threading.Lock()  # Thread safety for plotting
 
@@ -101,8 +102,14 @@ def decode_packet(buffer):
 def init_plot():
     """Initialize the plotting window"""
     plt.ion()  # Enable interactive mode
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
+    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
     fig.suptitle('Real-time Bus Data')
+    
+    # Get individual axes from the 2D array
+    ax1 = axs[0, 0]
+    ax2 = axs[0, 1]
+    ax3 = axs[1, 0]
+    ax4 = axs[1, 1]
     
     # Set up voltage subplot
     ax1.set_ylabel('Bus Voltage (V)')
@@ -111,44 +118,58 @@ def init_plot():
     
     # Set up current subplot
     ax2.set_ylabel('Bus Current (A)')
-    ax2.set_xlabel('Time')
     ax2.set_ylim(-30, 130)  # Adjust based on your current range
     ax2.grid(True)
 
     ax3.set_ylabel('SOC (%)')
     ax3.set_xlabel('Time')
-    ax3.set_ylim(0, 100)  # Adjust based on your current range
+    ax3.set_ylim(0, 120)  # Adjust based on your current range
     ax3.grid(True)
-    
-    return fig, (ax1, ax2,  ax3)
 
-def update_plot(fig, axes):
+    ax4.set_ylabel('Throttle (V)')
+    ax4.set_xlabel('Time')
+    ax4.set_ylim(0, 6)  # Adjust based on your current range
+    ax4.grid(True)
+    
+    # Return the axes array directly, not individual axes
+    return fig, axs
+
+def update_plot(fig, axs):
     """Update the plot with new data"""
     with plot_lock:
         if not timestamps:  # No data yet
             return
         
-        ax1, ax2, ax3 = axes
+        # Get individual axes from the 2D array
+        ax1 = axs[0, 0]
+        ax2 = axs[0, 1]
+        ax3 = axs[1, 0]
+        ax4 = axs[1, 1]
         
         # Clear previous lines
         ax1.clear()
         ax2.clear()
         ax3.clear()
+        ax4.clear()
         
         # Reset titles and grid
         ax1.set_ylabel('Bus Voltage (V)')
         ax2.set_ylabel('Bus Current (A)')
         ax3.set_ylabel('SOC (%)')
-        ax3.set_xlabel('Time') # Only bottom subplot needs x-label
+        ax4.set_ylabel('Throttle (V)')
+        ax3.set_xlabel('Time') # Bottom-left subplot
+        ax4.set_xlabel('Time') # Bottom-right subplot
 
         ax1.grid(True)
         ax2.grid(True)
         ax3.grid(True)
+        ax4.grid(True)
         
         # Set y-axis limits
         ax1.set_ylim(80, 100)
         ax2.set_ylim(-30, 130)
-        ax3.set_ylim(0, 100)
+        ax3.set_ylim(0, 120)
+        ax4.set_ylim(0, 6)
 
         # Convert timestamps to numeric format for plotting
         time_numbers = range(len(timestamps))
@@ -157,6 +178,7 @@ def update_plot(fig, axes):
         ax1.plot(time_numbers, list(voltage_data), 'b-', label='Voltage')
         ax2.plot(time_numbers, list(current_data), 'r-', label='Current')
         ax3.plot(time_numbers, list(soc_data), 'g-', label='SOC')
+        ax4.plot(time_numbers, list(throttle_data), 'y-', label='Throttle')
         
         # Set x-axis labels
         if len(timestamps) > 0:
@@ -166,16 +188,19 @@ def update_plot(fig, axes):
             positions = range(0, len(timestamps), step)
             labels = [timestamps[i].split()[1] for i in positions]  # Only show time part
 
-            # Only set time labels on bottom subplot
+            # Only set time labels on bottom subplots
             ax1.set_xticks([])  # Hide x-axis labels for top plots
             ax2.set_xticks([])
             ax3.set_xticks(positions)
+            ax4.set_xticks(positions)
             ax3.set_xticklabels(labels, rotation=45)
+            ax4.set_xticklabels(labels, rotation=45)
         
         # Add legends
         ax1.legend(loc='upper right')
         ax2.legend(loc='upper right')
         ax3.legend(loc='upper right')
+        ax4.legend(loc='upper right')
         
         # Adjust layout to prevent label cutoff
         plt.tight_layout()
@@ -183,7 +208,6 @@ def update_plot(fig, axes):
         # Draw the update
         fig.canvas.draw()
         fig.canvas.flush_events()
-
         
 def send_data(client):
     try:
@@ -253,9 +277,17 @@ def send_file_data(client):
     
     try:
         df = pd.read_csv(CSV_FILE)
+        required_columns = ["Time", "Bus_Voltage", "Bus_Current", "RPM", "Torque", "Current_U", "Current_V", "Current_W", "Throttle_Voltage", "SOC"]
+        
+        # Check if all required columns are present
+        for column in required_columns:
+            if column not in df.columns:
+                raise ValueError(f"Missing required column: {column}")
+
         row_count = 0
 
-        fig, axes = init_plot()
+        # Get the figure and axes array
+        fig, axs = init_plot()
 
         for _, row in df.iterrows():
             if stop_sending:
@@ -286,10 +318,11 @@ def send_file_data(client):
                 voltage_data.append(float(row["Bus_Voltage"]))
                 current_data.append(float(row["Bus_Current"]))
                 soc_data.append(float(row["SOC"]))
+                throttle_data.append(float(row["Throttle_Voltage"]))
             
             # Update plot every 5 data points to improve performance
             if row_count % 5 == 0:
-                update_plot(fig, axes)
+                update_plot(fig, axs)
 
             json_data = json.dumps(payload) # Convert to JSON string
             client.sendall(json_data.encode()) # Send as bytes to server
@@ -305,6 +338,8 @@ def send_file_data(client):
         print(f"❌ Error: CSV file not found at {CSV_FILE}")
     except pd.errors.EmptyDataError:
         print("❌ Error: The CSV file is empty")
+    except ValueError as ve:
+        print(f"❌ Error: {ve}")
     except Exception as e:
         print(f"❌ Error reading or sending data: {e}")
     
