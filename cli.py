@@ -23,6 +23,7 @@ voltage_data = deque(maxlen=PLOT_POINTS)
 current_data = deque(maxlen=PLOT_POINTS)
 soc_data = deque(maxlen=PLOT_POINTS)
 throttle_data = deque(maxlen=PLOT_POINTS)
+rpm_data = deque(maxlen=PLOT_POINTS)
 timestamps = deque(maxlen=PLOT_POINTS)
 plot_lock = threading.Lock()  # Thread safety for plotting
 
@@ -100,163 +101,240 @@ def decode_packet(buffer):
     }
 
 def init_plot():
-    """Initialize the plotting window"""
+    """Initialize the plotting window with five subplots including RPM"""
     plt.ion()  # Enable interactive mode
-    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
+    
+    # Create a 3x2 grid (6 subplots), but we'll use only 5 of them
+    fig, axs = plt.subplots(3, 2, figsize=(12, 10))
     fig.suptitle('Real-time Bus Data')
     
-    # Get individual axes from the 2D array
-    ax1 = axs[0, 0]
-    ax2 = axs[0, 1]
-    ax3 = axs[1, 0]
-    ax4 = axs[1, 1]
+    # Get individual axes - we'll use 5 out of 6 slots in the 3x2 grid
+    ax1 = axs[0, 0]  # Bus Voltage
+    ax2 = axs[0, 1]  # Bus Current
+    ax3 = axs[1, 0]  # SOC
+    ax4 = axs[1, 1]  # Throttle
+    ax5 = axs[2, 0]  # RPM
+    
+    # Hide the unused subplot
+    axs[2, 1].set_visible(False)
     
     # Set up voltage subplot
     ax1.set_ylabel('Bus Voltage (V)')
-    ax1.set_ylim(80, 100)  # Adjust based on your voltage range
+    ax1.set_ylim(80, 100)
     ax1.grid(True)
     
     # Set up current subplot
     ax2.set_ylabel('Bus Current (A)')
-    ax2.set_ylim(-30, 130)  # Adjust based on your current range
+    ax2.set_ylim(-30, 130)
     ax2.grid(True)
 
+    # Set up SOC subplot
     ax3.set_ylabel('SOC (%)')
-    ax3.set_xlabel('Time')
-    ax3.set_ylim(0, 120)  # Adjust based on your current range
+    ax3.set_ylim(0, 100)
     ax3.grid(True)
 
+    # Set up throttle subplot
     ax4.set_ylabel('Throttle (V)')
-    ax4.set_xlabel('Time')
-    ax4.set_ylim(0, 6)  # Adjust based on your current range
+    ax4.set_ylim(0, 6)
     ax4.grid(True)
     
-    # Return the axes array directly, not individual axes
+    # Set up RPM subplot
+    ax5.set_ylabel('RPM')
+    ax5.set_xlabel('Time')
+    ax5.set_ylim(0, 4000)  # Adjust based on your RPM range
+    ax5.grid(True)
+    
+    # Return the axes array
     return fig, axs
 
 def update_plot(fig, axs):
-    """Update the plot with new data"""
+    """Update the plot with new data including RPM"""
     with plot_lock:
-        if not timestamps:  # No data yet
+        # Only attempt to plot if we have data
+        if not timestamps or len(timestamps) == 0:
             return
         
-        # Get individual axes from the 2D array
-        ax1 = axs[0, 0]
-        ax2 = axs[0, 1]
-        ax3 = axs[1, 0]
-        ax4 = axs[1, 1]
+        # Get individual axes
+        ax1 = axs[0, 0]  # Bus Voltage
+        ax2 = axs[0, 1]  # Bus Current
+        ax3 = axs[1, 0]  # SOC
+        ax4 = axs[1, 1]  # Throttle
+        ax5 = axs[2, 0]  # RPM
         
         # Clear previous lines
         ax1.clear()
         ax2.clear()
         ax3.clear()
         ax4.clear()
+        ax5.clear()
         
         # Reset titles and grid
         ax1.set_ylabel('Bus Voltage (V)')
         ax2.set_ylabel('Bus Current (A)')
         ax3.set_ylabel('SOC (%)')
         ax4.set_ylabel('Throttle (V)')
-        ax3.set_xlabel('Time') # Bottom-left subplot
-        ax4.set_xlabel('Time') # Bottom-right subplot
+        ax5.set_ylabel('RPM')
+        ax5.set_xlabel('Time')
 
         ax1.grid(True)
         ax2.grid(True)
         ax3.grid(True)
         ax4.grid(True)
+        ax5.grid(True)
         
         # Set y-axis limits
         ax1.set_ylim(80, 100)
         ax2.set_ylim(-30, 130)
-        ax3.set_ylim(0, 120)
+        ax3.set_ylim(0, 100)
         ax4.set_ylim(0, 6)
+        ax5.set_ylim(0, 4000)  # Adjust based on your RPM range
 
         # Convert timestamps to numeric format for plotting
-        time_numbers = range(len(timestamps))
+        time_numbers = list(range(len(timestamps)))
         
-        # Plot new data
-        ax1.plot(time_numbers, list(voltage_data), 'b-', label='Voltage')
-        ax2.plot(time_numbers, list(current_data), 'r-', label='Current')
-        ax3.plot(time_numbers, list(soc_data), 'g-', label='SOC')
-        ax4.plot(time_numbers, list(throttle_data), 'y-', label='Throttle')
+        # Ensure all data lists have the same length as timestamps
+        # This prevents dimension mismatch errors
+        valid_len = len(time_numbers)
+        
+        if len(voltage_data) == valid_len:
+            ax1.plot(time_numbers, list(voltage_data), 'b-', label='Voltage')
+            ax1.legend(loc='upper right')
+            
+        if len(current_data) == valid_len:
+            ax2.plot(time_numbers, list(current_data), 'r-', label='Current')
+            ax2.legend(loc='upper right')
+            
+        if len(soc_data) == valid_len:
+            ax3.plot(time_numbers, list(soc_data), 'g-', label='SOC')
+            ax3.legend(loc='upper right')
+            
+        if len(throttle_data) == valid_len:
+            ax4.plot(time_numbers, list(throttle_data), 'y-', label='Throttle')
+            ax4.legend(loc='upper right')
+            
+        if len(rpm_data) == valid_len:
+            ax5.plot(time_numbers, list(rpm_data), 'm-', label='RPM')
+            ax5.legend(loc='upper right')
         
         # Set x-axis labels
         if len(timestamps) > 0:
             # Show fewer x-axis labels to prevent overcrowding
-            n_labels = 5
-            step = max(len(timestamps) // n_labels, 1)
-            positions = range(0, len(timestamps), step)
-            labels = [timestamps[i].split()[1] for i in positions]  # Only show time part
+            n_labels = min(5, len(timestamps))
+            if n_labels > 0:
+                step = max(len(timestamps) // n_labels, 1)
+                positions = list(range(0, len(timestamps), step))
+                labels = [timestamps[i].split()[1] for i in positions if i < len(timestamps)]  # Only show time part
 
-            # Only set time labels on bottom subplots
-            ax1.set_xticks([])  # Hide x-axis labels for top plots
-            ax2.set_xticks([])
-            ax3.set_xticks(positions)
-            ax4.set_xticks(positions)
-            ax3.set_xticklabels(labels, rotation=45)
-            ax4.set_xticklabels(labels, rotation=45)
-        
-        # Add legends
-        ax1.legend(loc='upper right')
-        ax2.legend(loc='upper right')
-        ax3.legend(loc='upper right')
-        ax4.legend(loc='upper right')
+                # Only set time labels on bottom subplot
+                ax1.set_xticks([])
+                ax2.set_xticks([])
+                ax3.set_xticks([])
+                ax4.set_xticks([])
+                if positions and labels:
+                    ax5.set_xticks(positions)
+                    ax5.set_xticklabels(labels, rotation=45)
         
         # Adjust layout to prevent label cutoff
         plt.tight_layout()
+        plt.subplots_adjust(top=0.95)  # Make room for suptitle
         
         # Draw the update
         fig.canvas.draw()
         fig.canvas.flush_events()
-        
-def send_data(client):
+
+def send_file_data(client):
+    global stop_sending, timestamps, voltage_data, current_data, soc_data, throttle_data, rpm_data
+    stop_sending = False
+    
+    print("\nSending data from file... (Press 'q' to stop)")
+
+    # Start a separate thread to listen for 'q' input
+    listener_thread = threading.Thread(target=listen_for_stop, daemon=True)
+    listener_thread.start()
+    
     try:
-        while True:
-            print("\nChoose data type to send:")
-            for k, v in DATA_TYPES.items():
-                print(f"  {k}: {v}")
-                
-            choice = input("\nEnter data type index (or 'q' to stop): ").strip()
-            if choice.lower() == 'q':
+        df = pd.read_csv(CSV_FILE)
+        required_columns = ["Time", "Bus_Voltage", "Bus_Current", "RPM", "Torque", "Current_U", "Current_V", "Current_W", "Throttle_Voltage", "SOC"]
+        
+        # Check if all required columns are present
+        for column in required_columns:
+            if column not in df.columns:
+                raise ValueError(f"Missing required column: {column}")
+
+        row_count = 0
+
+        # Clear old data if starting fresh
+        with plot_lock:
+            timestamps.clear()
+            voltage_data.clear()
+            current_data.clear()
+            soc_data.clear()
+            throttle_data.clear()
+            rpm_data.clear()
+
+        # Get the figure and axes array
+        fig, axs = init_plot()
+
+        for _, row in df.iterrows():
+            if stop_sending:
                 break
-            
-            if not choice.isdigit():  # Ensure input is numeric
-                print("❌ Invalid choice.")
-                continue
-            
-            choice = int(choice)  # Convert to integer after validation
-            
-            if choice not in DATA_TYPES:
-                print("❌ Invalid choice.")
-                continue
-            
-            value = input(f"Enter value for {DATA_TYPES[choice]}: ")
 
-            if choice == 3:  # GPS should be sent as a string
-                encoded_value = value.encode()  
-            elif choice in [4, 5, 10, 11]:  # Values that need to be split at decimal
-                try:
-                    # Split the input into whole number and decimal part
-                    whole_part, decimal_part = value.split('.')
-                    # Convert both parts to integers and then to hex
-                    whole_part_hex = int(whole_part).to_bytes(1, 'big', signed=True)
-                    decimal_part_hex = int(decimal_part).to_bytes(1, 'big', signed=True)
-                    encoded_value = whole_part_hex + decimal_part_hex
-                except ValueError:
-                    print("❌ Invalid decimal input. Please enter a valid number in the format 'whole.decimal'.")
-                    continue
-            elif choice in [6, 7, 8, 9, 12]:  # Values that should be sent as integers (without decimal values)
-                encoded_value = int(value).to_bytes(2, 'big', signed=True) # (working)
-            else:
-                print("❌ Unsupported data type.")
-                continue
+            payload = {
+                "time" : row["Time"],
+                "motor_data" : {
+                    "busVoltage" : float(row["Bus_Voltage"]),
+                    "busCurrent" : float(row["Bus_Current"]),
+                    "rpm" : float(row["RPM"]),
+                    "torque" : float(row["Torque"]),
+                },
+                "phase_currents": {
+                    "u": float(row["Current_U"]),
+                    "v": float(row["Current_V"]),
+                    "w": float(row["Current_W"])
+                },
+                "system_status": {
+                    "throttle_voltage": float(row["Throttle_Voltage"]),
+                    "soc": float(row["SOC"])
+                }
+            }
 
-            packet = encode_packet(choice, encoded_value)
-            client.sendall(packet)
-            print(f"📤 Sent: {packet.hex()}")
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("\n⏹ Stopped sending.")
+            # Update plotting data
+            with plot_lock:
+                timestamps.append(row["Time"])
+                voltage_data.append(float(row["Bus_Voltage"]))
+                current_data.append(float(row["Bus_Current"]))
+                soc_data.append(float(row["SOC"]))
+                throttle_data.append(float(row["Throttle_Voltage"]))
+                rpm_data.append(float(row["RPM"]))
+            
+            # Update plot every 5 data points to improve performance
+            if row_count % 5 == 0:
+                update_plot(fig, axs)
+
+            json_data = json.dumps(payload) # Convert to JSON string
+            client.sendall(json_data.encode()) # Send as bytes to server
+            
+            row_count += 1
+
+            print(f"📤 Sent row {row_count}: {json_data}")
+            print(f"⏱ Progress: {row_count}/{len(df)} rows sent", end='\r')
+            
+            time.sleep(0.1)  # Sending at 10Hz to match data generation rate
+
+    except FileNotFoundError:
+        print(f"❌ Error: CSV file not found at {CSV_FILE}")
+    except pd.errors.EmptyDataError:
+        print("❌ Error: The CSV file is empty")
+    except ValueError as ve:
+        print(f"❌ Error: {ve}")
+    except Exception as e:
+        print(f"❌ Error reading or sending data: {e}")
+    
+    finally:
+        plt.ioff()
+        plt.close('all')
+    
+    print("\n⏹ Stopped sending file data. Returning to menu.\n")
 
 def listen_for_stop():
     global stop_sending
