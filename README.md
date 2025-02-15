@@ -29,13 +29,13 @@ python cli.py
 ```
 
 ### Menu Options
-**1. Connect** – Establish a TCP connection with the server.
-**2. Quit** – Exit the CLI tool.
+- **Connect** – Establish a TCP connection with the server.
+- **Quit** – Exit the CLI tool.
 
 #### Inside the Connection Menu:
-**1. Send Data** – Select a data type and enter a value to send.
-**2. Receive Data** – Start listening for incoming data.
-**3. Disconnect** – Close the connection.
+- **Send Data** – Select a data type and enter a value to send.
+- **Receive Data** – Start listening for incoming data.
+- **Disconnect** – Close the connection.
 
 ### Data Encoding
 - Each packet follows a structured format including headers, payload, and checksum.
